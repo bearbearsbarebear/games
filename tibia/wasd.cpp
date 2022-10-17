@@ -2,22 +2,11 @@
 #include <cstdint>
 #include "detours/detours.h"
 
-/* The M.D here is that at 0x4CFB8A there is a call to a
- * function that process all keyboard inputs in the game
- * The function address is 0x458200
- * The best way to approach this is detouring the function
- * at 0x458200, interpreting the WORD key param that will
- * be in the stack and call 0x458200 again after it's done
- *
+/*
  * The pIsOnlineAddr I got somewhere at https://otland.net/
  *
- * At MyProcessKeyInput(int16_t key) I switch case the ascii
- * 272, which represents Insert. That's where one toggles the
- * WASD on and off
+ * This is just a proof of concept, not exactly ready to use.
  */
-
-// This is just a proof of concept, not exactly ready to use
-// in a server.
 
 // Addresses support 8.6
 constexpr DWORD pProcessKeyInputAddr = 0x458200;
@@ -76,6 +65,7 @@ void __cdecl MyProcessKeyInput(int16_t key)
             }
         }
 
+	// 272 = insert
         if (key == 272) wasdActive = !wasdActive;
     }
 
