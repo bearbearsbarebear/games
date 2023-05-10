@@ -53,7 +53,6 @@ void pressButton(unsigned char key)
 
 DWORD WINAPI initThread(LPVOID param)
 {
-    // Mana shit
     PIMAGE_SECTION_HEADER pCodeSection;
 
     if (!GetSectionHeaderInfo(nullptr, ".text", pCodeSection)) return 0;
