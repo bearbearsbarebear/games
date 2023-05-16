@@ -4,6 +4,9 @@
 #include <memory/Pattern.h>
 #include <chrono>
 #include <string>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/ini_parser.hpp>
+#include <boost/algorithm/string.hpp>
 
 struct PlayerInfo
 {
@@ -51,6 +54,24 @@ void pressButton(unsigned char key)
     SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
 }
 
+boolean hasCooldownExpired(long long cooldown)
+{
+    if (cooldown <= 1050) return false;
+
+    return true;
+}
+
+int stringToKeyCode(std::string keyString)
+{
+    // Remove the "0x" prefix from the string
+    if (keyString.substr(0, 2) == "0x") keyString = keyString.substr(2);
+
+    // Convert the hexadecimal string to an integer
+    int keyValue = std::stoi(keyString, nullptr, 16);
+
+    return keyValue;
+}
+
 DWORD WINAPI initThread(LPVOID param)
 {
     PIMAGE_SECTION_HEADER pCodeSection;
@@ -78,42 +99,91 @@ DWORD WINAPI initThread(LPVOID param)
 
     if (DetourTransactionCommit() != ERROR_SUCCESS) return 0;
 
-    auto last_mana_pot = std::chrono::steady_clock::now();
-    auto last_healing_spell = std::chrono::steady_clock::now();
+    // Retrieving config file
+    // File must be at client.exe folder and be called config.ini
+    boost::property_tree::ptree pt;
+    try {
+        boost::property_tree::ini_parser::read_ini("config.ini", pt);
+    } catch (const boost::property_tree::ini_parser_error& e) {
+        MessageBox(nullptr, "Error finding configuration file", "(Warning)", MB_ICONINFORMATION);
+        return 1;
+    } catch (const std::exception& e) {
+        MessageBox(nullptr, "Error opening or reading configuration file", "(Warning)", MB_ICONINFORMATION);
+        return 1;
+    }
 
-    while (true) 
-    {
+    int highHealth, lowHealth, mana;
+    std::string highHealthkey, lowHealthSpellKey, lowHealthItemKey, manaKey, healParalyzeKey;
+    bool healParalyze;
+    try {
+        // Retrieve the values
+        highHealth = pt.get<int>("HighHealth");
+        lowHealth = pt.get<int>("LowHealth");
+        mana = pt.get<int>("Mana");
+
+        healParalyze = pt.get<bool>("HealParalyze");
+
+        highHealthkey = pt.get<std::string>("HighHealthKey");
+        lowHealthSpellKey = pt.get<std::string>("LowHealthSpellKey");
+        lowHealthItemKey = pt.get<std::string>("LowHealthItemKey");
+        manaKey = pt.get<std::string>("ManaKey");
+        healParalyzeKey = pt.get<std::string>("HealParalyzeKey");
+    } catch (const boost::property_tree::ptree_error& e) {
+        MessageBox(nullptr, "Error reading configuration file", "(Warning)", MB_ICONINFORMATION);
+        return 1;
+    }
+
+    MessageBox(nullptr, "Successfully loaded config file!", "(Success)", MB_ICONINFORMATION);
+
+    auto last_item_use = std::chrono::steady_clock::now();
+    auto last_healing_spell = std::chrono::steady_clock::now();
+    auto last_support_spell = std::chrono::steady_clock::now();
+
+    while (true) {
         char window_title[256];
         HWND foreground_window = GetForegroundWindow();
-        if (foreground_window)
-        {
+        if (foreground_window) {
             GetWindowText(foreground_window, window_title, sizeof(window_title));
             std::string title(window_title);
-            if (title.find("Tibia") != std::string::npos)
-            {
+            if (title.find("Tibia") != std::string::npos) {
+                // The time now
                 auto now = std::chrono::steady_clock::now();
-                auto elapsed_mana_time = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_mana_pot).count();
+
+                // How long since an item has been used
+                auto elapsed_item_use_time = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_item_use).count();
+
+                // How long since a healing spell has been used
                 auto elapsed_healing_spell_time = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_healing_spell).count();
 
-                if (elapsed_mana_time >= 1050)
-                {
-                    if (PlayerData.CurrentMana < 1100)
-                    {
-                        pressButton(0x35); // 5
-                        last_mana_pot = now;
-                        //HookDebug::Message("%d", _PlayerMana);
-                        //MessageBox(nullptr, TEXT("%d", _PlayerMana), TEXT("(Warning)"), MB_ICONINFORMATION);
+                // Heal HP
+                if (PlayerData.CurrentHealth <= lowHealth && lowHealth > 0) {
+                    if (hasCooldownExpired(elapsed_healing_spell_time) && lowHealthSpellKey.compare("false") != 0) {
+                        pressButton(stringToKeyCode(lowHealthSpellKey)); // Low Health Spell Shortcut
+                        last_healing_spell = now;
                     }
-                }
 
-                if (elapsed_healing_spell_time >= 1050)
-                {
-                    if (PlayerData.CurrentHealth <= 800)
-                    {
-                        pressButton(0x31); // 1
+                    if (hasCooldownExpired(elapsed_item_use_time) && lowHealthItemKey.compare("false") != 0) {
+                        pressButton(stringToKeyCode(lowHealthItemKey)); // Low Health Item Shortcut
+                        last_item_use = now;
+                    }
+                } else if (PlayerData.CurrentHealth <= highHealth && highHealth > 0) {
+                    if (hasCooldownExpired(elapsed_healing_spell_time) && highHealthkey.compare("false") != 0) {
+                        pressButton(stringToKeyCode(highHealthkey)); // High Health Shortcut
                         last_healing_spell = now;
                     }
                 }
+
+                // Heal Mana
+                if (PlayerData.CurrentMana <= mana && mana > 0) {
+                    if (PlayerData.CurrentHealth > lowHealth) {
+                        if (hasCooldownExpired(elapsed_item_use_time) && manaKey.compare("false") != 0) {
+                            pressButton(stringToKeyCode(manaKey)); // Mana Potion Shortcut
+                            last_item_use = now;
+                        }
+                    }
+                }
+
+                // TODO: Heal Paralyze
             }
         }
 
@@ -125,8 +195,7 @@ DWORD WINAPI initThread(LPVOID param)
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
 {
-    switch (ul_reason_for_call)
-    {
+    switch (ul_reason_for_call) {
         case DLL_PROCESS_ATTACH:
             CreateThread(0, 0, initThread, hModule, 0, 0);
     }
