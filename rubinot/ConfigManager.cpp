@@ -4,7 +4,7 @@ boost::property_tree::ptree ConfigManager::pt;
 int32_t ConfigManager::highHealth;
 int32_t ConfigManager::lowHealth;
 int32_t ConfigManager::mana;
-bool ConfigManager::healParalyze;
+int32_t ConfigManager::healParalyze;
 std::string ConfigManager::highHealthkey;
 std::string ConfigManager::lowHealthSpellKey;
 std::string ConfigManager::lowHealthItemKey;
@@ -27,7 +27,7 @@ int32_t ConfigManager::loadConfig()
         ConfigManager::lowHealth = ConfigManager::pt.get<int>("LowHealth");
         ConfigManager::mana = ConfigManager::pt.get<int>("Mana");
 
-        ConfigManager::healParalyze = ConfigManager::pt.get<bool>("HealParalyze");
+        ConfigManager::healParalyze = ConfigManager::pt.get<int>("HealParalyze");
 
         ConfigManager::highHealthkey = ConfigManager::pt.get<std::string>("HighHealthKey");
         ConfigManager::lowHealthSpellKey = ConfigManager::pt.get<std::string>("LowHealthSpellKey");
