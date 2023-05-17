@@ -121,7 +121,12 @@ void __declspec(naked) __cdecl GameHook::MyHealthData()
 
 void GameHook::HandlePlayerStatus(int32_t status)
 {
-    GameHook::isParalyzed = (status == 5);
+    // I can't really do the code below:
+    // GameHook::isParalyzed = (status == 5)
+    // because status works as a list of status, so the next moment that is ran it will set to false
+    if (status == 5) {
+        GameHook::isParalyzed = true;
+    }
 }
 
 void __declspec(naked) __cdecl GameHook::MyStatusData()
