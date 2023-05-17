@@ -16,7 +16,7 @@ public:
     static int32_t highHealth;
     static int32_t lowHealth;
     static int32_t mana;
-    static bool healParalyze;
+    static int32_t healParalyze;
     static std::string highHealthkey;
     static std::string lowHealthSpellKey;
     static std::string lowHealthItemKey;
