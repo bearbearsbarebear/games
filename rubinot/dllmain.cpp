@@ -45,7 +45,7 @@ DWORD WINAPI initThread(LPVOID param)
             }
 
             // Paralyze Routine
-            if (GameHook::isParalyzed && ConfigManager::healParalyze) {
+            if (GameHook::isParalyzed && ConfigManager::healParalyze == 1) {
                 if (GameHook::hasCooldownExpired(elapsed_support_spell_time)) {
                     GameHook::pressButton(ConfigManager::stringToKeyCode(ConfigManager::healParalyzeKey));
                     GameHook::last_support_spell = now;
